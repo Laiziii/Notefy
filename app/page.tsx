@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { CloseIcon, PlusIcon, SearchIcon } from "@/components/Icons";
+import { useLayoutEffect, useMemo, useState } from "react";
+import { PlusIcon, SearchIcon } from "@/components/Icons";
+import { NewNotebookDialog } from "@/components/NewNotebookDialog";
+import { HomeSkeleton } from "@/components/Skeletons";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { TEMPLATES, createNotebook, useReady, useStore } from "@/lib/store";
+import { formatWhen } from "@/lib/dates";
+import { COLOURS } from "@/lib/fonts";
+import { createNotebook, useReady, useStore } from "@/lib/store";
 
 type Hit = { key: string; href: string; title: string; where: string; snippet: string };
 
@@ -15,14 +19,25 @@ function snippetAround(text: string, at: number, length: number) {
   return (start > 0 ? "…" : "") + text.slice(start, end).replace(/\s+/g, " ") + (end < text.length ? "…" : "");
 }
 
+/** Gives each notebook a steady colour from the palette, so they are easy to tell apart. */
+function colourFor(id: string) {
+  let sum = 0;
+  for (const ch of id) sum = (sum * 31 + ch.charCodeAt(0)) % 9973;
+  return `var(--c-${COLOURS[sum % COLOURS.length]})`;
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 export default function Home() {
-  const { notebooks, notes } = useStore();
+  const { notebooks, topics, notes } = useStore();
   const ready = useReady();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [template, setTemplate] = useState("blank");
+
+  // This screen is kept alive in the background after you leave it. Make sure
+  // the dialog never comes back open by itself when you return.
+  useLayoutEffect(() => () => setCreating(false), []);
 
   const sorted = useMemo(() => [...notebooks].sort((a, b) => b.updatedAt - a.updatedAt), [notebooks]);
 
@@ -45,38 +60,28 @@ export default function Home() {
       }
     }
     for (const note of notes) {
+      const where = byId.get(note.notebookId)?.className || "Untitled notebook";
       const inTitle = note.title.toLowerCase().includes(q);
       const at = note.body.toLowerCase().indexOf(q);
-      if (!inTitle && at < 0) continue;
+      const aiAt = (note.aiText ?? "").toLowerCase().indexOf(q);
+      if (!inTitle && at < 0 && aiAt < 0) continue;
       out.push({
         key: note.id,
         href: `/n/${note.notebookId}/${note.id}`,
         title: note.title || "Untitled note",
-        where: byId.get(note.notebookId)?.className || "Untitled notebook",
-        snippet: at >= 0 ? snippetAround(note.body, at, q.length) : "",
+        where: at < 0 && aiAt >= 0 ? `${where} · AI summary` : where,
+        snippet: at >= 0 ? snippetAround(note.body, at, q.length) : aiAt >= 0 ? snippetAround(note.aiText!, aiAt, q.length) : "",
       });
     }
     return out;
   }, [q, notebooks, notes]);
-
-  function closeDialog() {
-    setCreating(false);
-    setName("");
-    setTemplate("blank");
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const id = createNotebook(name || "Untitled notebook", template);
-    router.push(`/n/${id}`);
-  }
 
   return (
     <div className="page">
       <header className="topbar">
         <span className="wordmark">Notefy</span>
         <span className="spacer" />
-        <button className="icon-btn" onClick={() => setCreating(true)} aria-label="New notebook" title="New notebook">
+        <button className="btn square" onClick={() => setCreating(true)} aria-label="New notebook" title="New notebook">
           <PlusIcon />
         </button>
         <ThemeToggle />
@@ -95,88 +100,71 @@ export default function Home() {
         </label>
 
         {q ? (
-          hits.length ? (
-            <ul className="list">
+          <>
+            <h1 className="section-title">
+              {hits.length ? plural(hits.length, "result") : "No results"} for “{query.trim()}”
+            </h1>
+            <ul className="results">
               {hits.map((h) => (
                 <li key={h.key}>
-                  <Link className="row" href={h.href}>
-                    <span className="row-title">{h.title}</span>
-                    <span className="row-sub">{h.where}</span>
-                    {h.snippet && <span className="row-snippet">{h.snippet}</span>}
+                  <Link className="result" href={h.href}>
+                    <span className="result-title">{h.title}</span>
+                    <span className="meta">{h.where}</span>
+                    {h.snippet && <span className="result-snippet">{h.snippet}</span>}
                   </Link>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="empty">Nothing matches “{query.trim()}”.</p>
-          )
-        ) : !ready ? null : sorted.length ? (
-          <ul className="list">
-            {sorted.map((nb) => {
-              const count = notes.filter((n) => n.notebookId === nb.id).length;
-              const sub = [nb.professor, nb.time].filter(Boolean).join(" · ");
-              return (
-                <li key={nb.id}>
-                  <Link className="row" href={`/n/${nb.id}`}>
-                    <span className="row-title">{nb.className || "Untitled notebook"}</span>
-                    <span className="row-sub">
-                      {sub ? `${sub} · ` : ""}
-                      {count} {count === 1 ? "note" : "notes"}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          </>
         ) : (
-          <div className="empty">
-            <p>No notebooks yet.</p>
-            <button className="btn" onClick={() => setCreating(true)}>
-              Create your first notebook
-            </button>
-          </div>
+          <>
+            <h1 className="section-title">Your notebooks</h1>
+            {!ready ? (
+              <HomeSkeleton />
+            ) : sorted.length ? (
+              <ul className="cards">
+                {sorted.map((nb) => {
+                  const noteCount = notes.filter((n) => n.notebookId === nb.id).length;
+                  const topicCount = topics.filter((t) => t.notebookId === nb.id).length;
+                  const where = [nb.location, nb.time].filter(Boolean).join(" · ");
+                  return (
+                    <li key={nb.id}>
+                      <Link className="card" href={`/n/${nb.id}`} style={{ "--tint": colourFor(nb.id) } as React.CSSProperties}>
+                        <span className="card-title">{nb.className || "Untitled notebook"}</span>
+                        <span className="card-prof">{nb.professor || "No professor added"}</span>
+                        <span className="meta">{where || "No room or time added"}</span>
+                        <span className="card-foot">
+                          <span>
+                            {plural(noteCount, "note")}
+                            {topicCount ? ` · ${plural(topicCount, "topic")}` : ""}
+                          </span>
+                          <span>Last used {formatWhen(nb.updatedAt)}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="empty boxed">
+                <p>No notebooks yet. Make one for each class you take.</p>
+                <button className="btn" onClick={() => setCreating(true)}>
+                  <PlusIcon /> Create your first notebook
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 
       {creating && (
-        <div className="scrim" onClick={closeDialog}>
-          <form className="dialog" onSubmit={submit} onClick={(e) => e.stopPropagation()} aria-label="New notebook">
-            <div className="dialog-head">
-              <h2>New notebook</h2>
-              <button type="button" className="icon-btn" onClick={closeDialog} aria-label="Close">
-                <CloseIcon />
-              </button>
-            </div>
-            <label className="field">
-              <span>Class name</span>
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Health Inspection"
-              />
-            </label>
-            <fieldset className="templates">
-              <legend>Start from</legend>
-              {TEMPLATES.map((t) => (
-                <label key={t.id} className={`template${template === t.id ? " selected" : ""}`}>
-                  <input
-                    type="radio"
-                    name="template"
-                    value={t.id}
-                    checked={template === t.id}
-                    onChange={() => setTemplate(t.id)}
-                  />
-                  <span className="template-name">{t.name}</span>
-                  <span className="template-hint">{t.hint}</span>
-                </label>
-              ))}
-            </fieldset>
-            <button className="btn primary" type="submit">
-              Create notebook
-            </button>
-          </form>
-        </div>
+        <NewNotebookDialog
+          onCancel={() => setCreating(false)}
+          onCreate={(details, template) => {
+            setCreating(false);
+            router.push(`/n/${createNotebook(details, template)}`);
+          }}
+        />
       )}
     </div>
   );

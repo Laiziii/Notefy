@@ -24,6 +24,7 @@ export type Topic = {
   notebookId: string;
   name: string;
   createdAt: number;
+  collapsed?: boolean;
 };
 
 export type Note = {
@@ -31,10 +32,23 @@ export type Note = {
   notebookId: string;
   topicId: string | null;
   title: string;
+  /** Plain text of "My notes", used for search and previews. */
   body: string;
+  /** Formatted content of "My notes". Missing on notes written before the toolbar existed. */
+  bodyHtml?: string;
+  /** The AI summary panel: formatted content and its plain text. */
+  aiHtml?: string;
+  aiText?: string;
+  /** Whole-note look, chosen from the toolbar. */
+  font?: string;
+  fontSize?: number;
+  spacing?: "single" | "double";
   createdAt: number;
   updatedAt: number;
 };
+
+export type NotePatch = Partial<Omit<Note, "id" | "notebookId" | "createdAt" | "updatedAt">>;
+export type NotebookDetails = Pick<Notebook, "className" | "professor" | "location" | "time" | "email">;
 
 export type State = {
   notebooks: Notebook[];
@@ -162,18 +176,18 @@ function touchNotebook(s: State, notebookId: string, now: number): Notebook[] {
   return s.notebooks.map((n) => (n.id === notebookId ? { ...n, updatedAt: now } : n));
 }
 
-export function createNotebook(className: string, templateId: string): string {
+export function createNotebook(details: NotebookDetails, templateId: string): string {
   ensureLoaded();
   const now = Date.now();
   const id = newId();
   const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
   const notebook: Notebook = {
     id,
-    className: className.trim(),
-    professor: "",
-    location: "",
-    time: "",
-    email: "",
+    className: details.className.trim(),
+    professor: details.professor.trim(),
+    location: details.location.trim(),
+    time: details.time.trim(),
+    email: details.email.trim(),
     createdAt: now,
     updatedAt: now,
   };
@@ -214,8 +228,8 @@ export function createTopic(notebookId: string, name: string): string {
   return id;
 }
 
-export function renameTopic(id: string, name: string) {
-  commit({ ...state, topics: state.topics.map((t) => (t.id === id ? { ...t, name } : t)) });
+export function updateTopic(id: string, patch: Partial<Pick<Topic, "name" | "collapsed">>) {
+  commit({ ...state, topics: state.topics.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
 }
 
 /** Deletes a topic and the notes inside it. */
@@ -238,7 +252,7 @@ export function createNote(notebookId: string, topicId: string | null): string {
   return id;
 }
 
-export function updateNote(id: string, patch: Partial<Pick<Note, "title" | "body">>) {
+export function updateNote(id: string, patch: NotePatch) {
   const now = Date.now();
   const note = state.notes.find((n) => n.id === id);
   if (!note) return;
