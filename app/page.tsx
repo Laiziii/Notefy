@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useMemo, useState } from "react";
+import { AccountMenu } from "@/components/AccountMenu";
 import { PlusIcon, SearchIcon } from "@/components/Icons";
 import { NewNotebookDialog } from "@/components/NewNotebookDialog";
 import { HomeSkeleton } from "@/components/Skeletons";
@@ -84,6 +85,7 @@ export default function Home() {
         <button className="btn square" onClick={() => setCreating(true)} aria-label="New notebook" title="New notebook">
           <PlusIcon />
         </button>
+        <AccountMenu />
         <ThemeToggle />
       </header>
 

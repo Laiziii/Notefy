@@ -1229,3 +1229,72 @@ a.card:hover {
     transition: none;
   }
 }
+
+/* ---------- Sign-in gate ---------- */
+
+.gate {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.gate-card {
+  width: 100%;
+  max-width: 400px;
+}
+.gate-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+.gate-sub {
+  color: var(--muted);
+  text-align: center;
+  margin: 6px 0 28px;
+}
+.gate-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gate-main {
+  width: 100%;
+  justify-content: center;
+}
+.gate-hint {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  padding: 0 4px;
+}
+.gate-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--faint);
+  font-size: 13px;
+  margin: 4px 0;
+}
+.gate-divider::before,
+.gate-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.gate-error {
+  color: var(--danger);
+  font-size: 14px;
+}
+.gate-back {
+  align-self: center;
+  font-size: 14px;
+  color: var(--muted);
+  padding: 4px;
+}
+.gate-back:hover {
+  color: var(--text);
+}

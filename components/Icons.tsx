@@ -76,6 +76,12 @@ export const SourceIcon = () => (
     <path d="M14 3v5h5M9 13h6M9 17h6" />
   </Svg>
 );
+export const UserIcon = () => (
+  <Svg>
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M5 20c1.2-4 4-6 7-6s5.8 2 7 6" />
+  </Svg>
+);
 export const SparkIcon = () => (
   <Svg size={18}>
     <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16v4M17 18h4" />
