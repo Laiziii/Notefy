@@ -122,17 +122,21 @@ function subscribeSaving(listener: () => void) {
 
 export function useStore(): State {
   if (!supabaseConfigured) ensureLocalLoaded();
-  return useSyncExternalStore(subscribe, () => state, () => EMPTY);
+  return useSyncExternalStore(subscribe, () => state, () => state);
 }
 
 /** False while there is nothing to show yet: the server-made shell, or data still loading. */
 export function useReady(): boolean {
   if (!supabaseConfigured) ensureLocalLoaded();
-  return useSyncExternalStore(subscribe, () => (supabaseConfigured ? ready : localLoaded), () => false);
+  return useSyncExternalStore(
+    subscribe,
+    () => (supabaseConfigured ? ready : localLoaded),
+    () => (supabaseConfigured ? ready : localLoaded),
+  );
 }
 /** True while a change is waiting to be written. */
 export function useSaving(): boolean {
-  return useSyncExternalStore(subscribeSaving, () => saving, () => false);
+  return useSyncExternalStore(subscribeSaving, () => saving, () => saving);
 }
 
 const newId = () =>
@@ -311,10 +315,17 @@ export async function attachUser(client: SupabaseClient, userId: string) {
   if (e1 || e2 || e3) {
     console.error("Notefy: could not load your notebooks.", e1 ?? e2 ?? e3);
   }
+  // Keep anything created while this fetch was in flight: this result was asked
+  // for before that happened, so it can't know about it yet, and replacing the
+  // whole state with it would otherwise make that new thing vanish.
+  const keepUnseen = <T extends { id: string }>(fetched: T[], current: T[]): T[] => {
+    const fetchedIds = new Set(fetched.map((r) => r.id));
+    return [...fetched, ...current.filter((r) => !fetchedIds.has(r.id))];
+  };
   setState({
-    notebooks: (notebooks ?? []).map(rowToNotebook),
-    topics: (topics ?? []).map(rowToTopic),
-    notes: (notes ?? []).map(rowToNote),
+    notebooks: keepUnseen((notebooks ?? []).map(rowToNotebook), state.notebooks),
+    topics: keepUnseen((topics ?? []).map(rowToTopic), state.topics),
+    notes: keepUnseen((notes ?? []).map(rowToNote), state.notes),
   });
   setReady(true);
 

@@ -86,6 +86,14 @@ create trigger notes_touch_updated_at
   before update on public.notes
   for each row execute function public.notefy_touch_updated_at();
 
+-- A delete only reports the deleted row's id by default, which isn't enough
+-- to check "was this one of mine" against user_id, so the Realtime filter
+-- below would silently drop every delete. This tells Postgres to report the
+-- whole row being deleted instead.
+alter table public.notebooks replica identity full;
+alter table public.topics replica identity full;
+alter table public.notes replica identity full;
+
 -- Let other signed-in devices see changes live.
 do $$
 begin

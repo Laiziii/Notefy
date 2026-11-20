@@ -54,8 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(next);
       setReady(true);
       if (next?.user) {
-        attachUser(client, next.user.id);
-        migrateLegacyLocalData(client, next.user.id);
+        // Finish copying any leftover local notes in BEFORE the first fetch,
+        // so that fetch already includes them (a fetch started first could
+        // otherwise miss inserts the migration makes a moment later).
+        const userId = next.user.id;
+        migrateLegacyLocalData(client, userId).then(() => attachUser(client, userId));
       } else {
         detachUser();
       }
